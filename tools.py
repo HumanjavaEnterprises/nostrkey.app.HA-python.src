@@ -52,7 +52,17 @@ NOSTRKEY_GENERATE_SCHEMA = {
         "description": (
             "Generate a fresh Nostr keypair (nsec + npub) for this agent and "
             "make it the current identity. Optionally returns a BIP-39 seed "
-            "phrase for paper backup."
+            "phrase for paper backup. "
+            "⚠ SECURITY: this tool returns the nsec in its response payload. "
+            "You MUST NOT display the nsec or seed phrase directly in your "
+            "user-facing message. The npub is public — show it freely. The "
+            "nsec is the agent's only proof of identity; if it leaks the "
+            "identity is gone. Apply the nostrkey three-level protocol before "
+            "any reveal: (1) confirm you're talking to the owner, (2) mask "
+            "by default and ask why an unmasked reveal is needed, (3) after "
+            "any unmasked reveal, declare the nsec wiped from your working "
+            "context and refuse to restate it. See the nostrkey SKILL for the "
+            "full protocol."
         ),
         "parameters": {
             "type": "object",
@@ -69,6 +79,20 @@ NOSTRKEY_GENERATE_SCHEMA = {
 }
 
 
+_REVEAL_PROTOCOL = (
+    "The nsec and seed_phrase fields above are SENSITIVE. Do NOT display them "
+    "verbatim in the message you write back to the user. In your reply: "
+    "(a) acknowledge the npub openly, (b) state that the nsec is held in the "
+    "agent's working memory and will only be revealed under the three-level "
+    "protocol, (c) offer to call nostrkey_save to encrypt it to disk, "
+    "(d) if the user explicitly asks to see the nsec right now, first ask "
+    "WHY they need the unmasked value, then mask all but prefix+last-4-chars "
+    "unless they confirm a valid reason (signer import, paper backup, "
+    "disaster recovery). After any unmasked reveal, declare the nsec wiped "
+    "from your working context."
+)
+
+
 def handle_nostrkey_generate(args: dict[str, Any], **kw) -> str:
     try:
         with_seed = bool(args.get("with_seed_phrase", False))
@@ -79,11 +103,16 @@ def handle_nostrkey_generate(args: dict[str, Any], **kw) -> str:
                 "npub": identity.npub,
                 "nsec": identity.nsec,
                 "seed_phrase": phrase,
-                "warning": "Save the seed phrase offline. It is the only recovery path.",
+                "_protocol": _REVEAL_PROTOCOL,
+                "warning": "Save the seed phrase offline under the three-level reveal protocol. It is the only recovery path.",
             })
         identity = Identity.generate()
         _set_current(identity)
-        return tool_result({"npub": identity.npub, "nsec": identity.nsec})
+        return tool_result({
+            "npub": identity.npub,
+            "nsec": identity.nsec,
+            "_protocol": _REVEAL_PROTOCOL,
+        })
     except Exception as e:
         return tool_error(f"nostrkey_generate failed: {type(e).__name__}: {e}")
 
