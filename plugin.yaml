@@ -1,14 +1,16 @@
 name: nostrkey
-version: 0.1.1
-description: "Give your Hermes Agent its own Nostr identity. Generate keypairs, sign events, encrypt data, back up identities. Mirrors the OpenClaw nostrkey SDK; same crypto, same wire format, same npub. Five tools: generate, whoami, save, load, sign_event. ⚠ The agent must apply the three-level nsec disclosure protocol (see SKILL.md) before ever revealing a private key — owner verification, masking-by-default, post-reveal context wipe."
-author: Humanjava Enterprises
-kind: backend
-platforms:
-  - linux
-  - macos
+version: 0.2.0
+description: "Give your Hermes Agent its own Nostr identity. Generate keypairs, sign events, encrypt to disk, back up identities. Seven tools. nsec and seed phrase are NEVER returned by generate/load — retrieval requires the gated nostrkey_export_nsec / nostrkey_export_seed_phrase tools, which need NOSTRKEY_REVEAL_CODE env var + matching confirmation_code + purpose ≥20 chars. All export attempts logged to $HERMES_HOME/.nostrkey/reveal_audit.log. See SKILL.md for the three-level disclosure protocol."
 provides_tools:
   - nostrkey_generate
   - nostrkey_whoami
   - nostrkey_save
   - nostrkey_load
   - nostrkey_sign_event
+  - nostrkey_export_nsec
+  - nostrkey_export_seed_phrase
+author: Humanjava Enterprises
+kind: backend
+platforms:
+  - linux
+  - macos

@@ -7,9 +7,13 @@ exposes it as five agent tools. Same crypto, same wire format, same npub
 as the human-facing [NostrKey](https://nostrkey.com) browser extension
 and the OpenClaw [`pip install nostrkey`](https://pypi.org/project/nostrkey/) SDK.
 
-**v0.1.0** — five tools (generate, whoami, save, load, sign_event),
-encrypted backup with PBKDF2 + ChaCha20-Poly1305, BIP-39 seed phrase
-support, zero C dependencies.
+**v0.2.0** — seven tools. nsec and seed phrase are NEVER returned by
+generate/load; retrieval requires the gated
+`nostrkey_export_nsec` / `nostrkey_export_seed_phrase` tools, which
+need `NOSTRKEY_REVEAL_CODE` env var + matching confirmation_code +
+purpose ≥20 chars. Constant-time code compare. All export attempts
+audit-logged. Encrypted backup with PBKDF2 + ChaCha20-Poly1305, BIP-39
+seed phrase support, zero C dependencies.
 
 ## Why?
 
@@ -74,11 +78,38 @@ Default save path is `$HERMES_HOME/.nostrkey/identity.nostrkey`.
 
 | Tool | Purpose |
 |---|---|
-| `nostrkey_generate` | Create a new keypair; optionally also a 12-word seed phrase |
+| `nostrkey_generate` | Create a new keypair; returns only the npub |
 | `nostrkey_whoami` | Return loaded identity's npub + public-key hex |
 | `nostrkey_save` | Encrypt + persist current identity to disk |
 | `nostrkey_load` | Decrypt + load identity from disk |
 | `nostrkey_sign_event` | Sign a Nostr event with the current identity |
+| `nostrkey_export_nsec` | Gated nsec export — requires `NOSTRKEY_REVEAL_CODE` + purpose |
+| `nostrkey_export_seed_phrase` | Gated seed-phrase export with same protocol |
+
+## Reveal protocol
+
+The nsec is the only proof of identity an agent has. To make accidental
+leaks impossible, this plugin **never returns the nsec or seed phrase
+from `nostrkey_generate` or `nostrkey_load`**. Retrieval goes through
+two dedicated gated tools.
+
+Before any retrieval, the operator must set `NOSTRKEY_REVEAL_CODE` in
+the Hermes environment. This is the proof-of-presence — only someone
+with shell access to the box can do this:
+
+```bash
+export NOSTRKEY_REVEAL_CODE="some-strong-code-only-the-operator-knows"
+```
+
+Add to `$HERMES_HOME/.env` for persistence, or pass via
+`docker run -e` for ephemeral exports.
+
+The agent then calls `nostrkey_export_nsec` with the matching code +
+a purpose string ≥20 chars. The plugin constant-time-compares the
+code, validates the purpose length, logs the attempt to
+`$HERMES_HOME/.nostrkey/reveal_audit.log`, and (on success) returns
+the nsec with a directive that tells the model to display once,
+declare wiped, and warn about chat persistence.
 
 ## Backup & Recovery
 

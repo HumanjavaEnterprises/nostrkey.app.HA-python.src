@@ -1,8 +1,8 @@
 ---
 name: nostrkey
-description: Protocol for handling Nostr private keys (nsec) and seed phrases. The agent must NEVER display an nsec or seed phrase without three-level unlock — owner verification, masking-by-default, and post-reveal context wipe.
+description: Protocol for handling Nostr private keys (nsec) and seed phrases. v0.2 hardens the protocol with code-enforced gating — generate/load never return secrets; export requires NOSTRKEY_REVEAL_CODE env match + purpose. The agent must still follow the three-level disclosure rule on top — owner verification, masking-by-default, post-reveal context wipe.
 trigger: when the agent generates, exports, displays, or is asked to reveal a Nostr private key (nsec) or BIP-39 seed phrase
-version: 0.1.0
+version: 0.2.0
 ---
 
 # nostrkey — handling private key material
@@ -24,17 +24,24 @@ fine."
 
 ### Level 1 — Verify you're talking to the owner
 
-The plugin's tool layer enforces a code-level check via the
-`NOSTRKEY_REVEAL_CODE` env var (or, in the future, a gated
-`nostrkey_export_nsec` tool that requires explicit confirmation
-arguments). If you don't know whether the caller is the owner of
-this Hermes instance, ask:
+**Code-enforced as of v0.2.** The export tools (`nostrkey_export_nsec`
+and `nostrkey_export_seed_phrase`) require:
+- The operator to have set `NOSTRKEY_REVEAL_CODE` in the Hermes env
+  before launching the agent (proof-of-presence — only someone with
+  shell access to the box can set it)
+- A matching `confirmation_code` argument on the tool call (constant-
+  time compared to the env value)
 
-> "I want to confirm — are you the owner of this Hermes Agent? The
-> nsec is the cryptographic proof of this agent's identity. If it's
-> exposed to anyone but you, the identity has to be rotated."
+If the env var isn't set, the export tool refuses with a clear error.
+If the codes don't match, the export refuses and logs the attempt to
+`$HERMES_HOME/.nostrkey/reveal_audit.log`.
 
-Wait for confirmation before proceeding to Level 2.
+Before calling the export tool, ask the operator:
+
+> "To export the unmasked nsec I need the NOSTRKEY_REVEAL_CODE the
+> operator set in this Hermes's env. What code should I pass?"
+
+Wait for them to provide it before proceeding to Level 2.
 
 ### Level 2 — Mask, and ask WHY
 
@@ -78,25 +85,36 @@ the reveal with this exact behavior:
 
 ---
 
-## What the plugin tools do today
+## What the plugin tools do today (v0.2)
 
 ### `nostrkey_generate`
 
-Generates a fresh keypair. **Returns the nsec inline in its response
-payload** in the current v0.1.0 plugin. This is a known limitation —
-a future v0.2 will gate nsec retrieval behind an explicit
-confirmation-coded tool. Until then, you (the model) are the last line
-of defense:
+Generates a fresh keypair. **Returns ONLY the npub** plus a
+`next_steps` field. The nsec (and seed phrase, if `with_seed_phrase=true`)
+are held in module memory but never appear in this tool's response —
+there is nothing for the model to accidentally leak. Display the
+npub freely.
 
-- When `nostrkey_generate` returns, **do not display the nsec
-  directly to the user in the message you write back**. Mention the
-  npub freely; tell the operator "I've also generated an nsec for
-  this identity and saved it to working memory — say `reveal nsec`
-  if you need to see it, but I'll apply the three-level protocol
-  before showing it."
-- Apply Levels 1, 2, 3 above on the actual reveal.
-- When the operator finishes copying, propose calling
-  `nostrkey_save` to encrypt the keypair to disk.
+### `nostrkey_export_nsec` (gated)
+
+The single canonical path for revealing an nsec. Requires:
+- `confirmation_code` matching `NOSTRKEY_REVEAL_CODE` env var
+- `purpose` argument ≥20 chars describing why
+
+On success, returns the nsec PLUS a `_post_reveal_directive` field
+that you (the model) must follow: display once, declare wiped, warn
+about chat persistence. Audit log entry is written.
+
+On any failure (env not set, code mismatch, purpose too short), the
+tool returns an error and logs the attempt.
+
+### `nostrkey_export_seed_phrase` (gated)
+
+Same gating as `nostrkey_export_nsec`, retrieves the BIP-39 phrase if
+the identity was created with `with_seed_phrase=true`. Identities
+loaded from disk via `nostrkey_load` don't have the original phrase
+available — it's discarded after generation since the encrypted file
+is the authoritative store.
 
 ### `nostrkey_save` and `nostrkey_load`
 
