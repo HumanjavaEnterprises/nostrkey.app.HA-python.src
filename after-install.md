@@ -34,4 +34,4 @@ inside the Hermes venv.
 
 - This plugin: <https://github.com/HumanjavaEnterprises/nostrkey.app.HA-python.src>
 - Underlying library (PyPI / OpenClaw): <https://pypi.org/project/nostrkey/>
-- Docs: <https://loginwithnostr.com/hermes>
+- Docs: <https://loginwithnostr.com/python-agents>

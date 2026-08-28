@@ -61,5 +61,5 @@ or `load` explicitly.
 
 ## Page
 
-User-facing landing page is at https://loginwithnostr.com/hermes (sibling
+User-facing landing page is at https://loginwithnostr.com/python-agents (sibling
 to /openclaw). Source: `~/development/loginwithnostr.web.landingpage.src/docs/hermes/`.
